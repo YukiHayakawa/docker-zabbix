@@ -1,0 +1,80 @@
+version: '3'
+services:
+  mysql:
+    image: mysql:5.7
+    restart: always
+    container_name: zabbix-mysql
+    command: mysqld --character-set-server=utf8 --collation-server=utf8_unicode_ci
+    user: mysql
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+    expose:
+      - "3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+
+  zabbix-server:
+    image: zabbix/zabbix-server-mysql:alpine-3.4-latest
+    restart: always
+    container_name: zabbix-server
+    volumes:
+      - ./data/zabbix:/var/lib/zabbix
+    environment:
+      DB_SERVER_HOST: mysql
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    expose:
+      - "10051"
+    depends_on:
+      - mysql
+    links:
+      - mysql
+
+  zabbix-web:
+    image: zabbix/zabbix-web-nginx-mysql:alpine-3.4-latest
+    restart: always
+    container_name: zabbix-web
+    environment:
+      VIRTUAL_HOST: ${ZABBIX_HTTP_HOST}
+      VIRTUAL_PORT: ${ZABBIX_PORT}
+      DB_SERVER_HOST: mysql
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      ZBX_SERVER_HOST: zabbix-server
+      PHP_TZ: Asia/Tokyo
+    expose:
+      - ${ZABBIX_PORT}
+    depends_on:
+      - mysql
+      - zabbix-server
+    links:
+      - mysql
+      - zabbix-server
+
+  zabbix-agent:
+    image: zabbix/zabbix-agent:alpine-latest
+    restart: always
+    container_name: zabbix-agent
+    environment:
+      ZBX_SERVER_HOST: zabbix-server
+      ZBX_HOSTNAMEITEM: system.hostname
+      ZBX_METADATA: linux
+    expose:
+      - "10050"
+    depends_on:
+      - zabbix-server
+    links:
+      - zabbix-server
+    privileged: true
+
+networks:
+  default:
+    external:
+      name: nginxproxy_default
