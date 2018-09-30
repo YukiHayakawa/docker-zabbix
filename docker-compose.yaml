@@ -1,5 +1,19 @@
 version: '3'
 services:
+  nginx:
+    image: nginx
+    container_name: zabbix-nginx
+    depends_on:
+      - zabbix-web
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d
+    environment:
+      VIRTUAL_HOST: ${ZABBIX_HTTP_HOST}
+      LETSENCRYPT_HOST: ${ZABBIX_HTTP_HOST}
+      LETSENCRYPT_EMAIL: ${EMAIL}
+      HOST: zabbix-web
+    command: /bin/sh -c "envsubst '$$VIRTUAL_HOST$$HOST' < /etc/nginx/conf.d/default.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"
+    restart: always
   mysql:
     image: mysql:5.7
     restart: always
@@ -32,16 +46,13 @@ services:
       - "10051"
     depends_on:
       - mysql
-    links:
-      - mysql
 
   zabbix-web:
     image: zabbix/zabbix-web-nginx-mysql:alpine-3.4-latest
     restart: always
     container_name: zabbix-web
+    hostname: zabbix-web
     environment:
-      VIRTUAL_HOST: ${ZABBIX_HTTP_HOST}
-      VIRTUAL_PORT: ${ZABBIX_PORT}
       DB_SERVER_HOST: mysql
       MYSQL_DATABASE: ${MYSQL_DATABASE}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
@@ -49,12 +60,9 @@ services:
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
       ZBX_SERVER_HOST: zabbix-server
       PHP_TZ: Asia/Tokyo
-    expose:
-      - ${ZABBIX_PORT}
+    ports:
+      - ${ZABBIX_PORT}:80
     depends_on:
-      - mysql
-      - zabbix-server
-    links:
       - mysql
       - zabbix-server
 
@@ -69,8 +77,6 @@ services:
     expose:
       - "10050"
     depends_on:
-      - zabbix-server
-    links:
       - zabbix-server
     privileged: true
 
